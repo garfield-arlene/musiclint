@@ -3,21 +3,11 @@
 import argparse
 import logging
 import os
-
+import glob
+from plugins.findmp3 import findMP3Files
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument(
-    '-d', '--debug',
-    help="Print lots of debugging statements",
-    action="store_const", dest="loglevel", const=logging.DEBUG,
-    default=logging.WARNING,
-)
-parser.add_argument(
-    '-v', '--verbose',
-    help="Be verbose",
-    action="store_const", dest="loglevel", const=logging.INFO,
-)
 
 def readable_dir(prospective_dir):
     if not os.path.isdir(prospective_dir):
@@ -33,16 +23,46 @@ parser.add_argument(
     help="Specify the music library root directory",
 )
 
+parser.add_argument(
+    '-d', '--debug',
+    help="Print lots of debugging statements",
+    action="store_const", dest="loglevel", const=logging.DEBUG,
+    default=logging.WARNING,
+)
+
+parser.add_argument(
+    '-v', '--verbosity',
+    help="Increase verbosity",
+    action="count",
+)
+
+parser.add_argument(
+    '-m', '--mp3',
+    help="Parse mp3 audio files",
+    action="store_true",
+)
+
 args = parser.parse_args()
 
-if args.library:
-    print(args.library)
+
 
 logging.basicConfig(filename='musiclint.log',level=logging.INFO,format='%(asctime)s - %(message)s', datefmt='%m/%d/%Y %I:%M:%S %p')
-logging.info("Your music library starts in: " + args.library)
+logging.info("******************** Start processing ********************")
+
+if args.mp3:
+    import plugins.findmp3
 
 def main():
     print("hello")
+    
+    if args.verbosity >= 1:
+        logging.info("Library directory: " + args.library)
+    
+    if args.mp3 and args.verbosity >= 1:
+        logging.info("Processing mp3 files")
+
+    plugins.findmp3.findMP3Files(args.library)
+
 
 if __name__ == "__main__":
     main()
