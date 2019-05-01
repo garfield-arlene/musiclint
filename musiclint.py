@@ -58,10 +58,11 @@ def main():
     if args.verbosity >= 1:
         logging.info("Library directory: " + args.library)
     
-    if args.mp3 and args.verbosity >= 1:
-        logging.info("Processing mp3 files")
-
-    plugins.findmp3.findMP3Files(args.library)
+    if args.mp3:
+        if args.verbosity >= 1:
+            logging.info("Processing mp3 files")
+        
+        plugins.findmp3.findMP3Files(args.library, args.verbosity)
 
 
 if __name__ == "__main__":

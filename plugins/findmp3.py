@@ -3,9 +3,13 @@ import logging
 import os
 import glob
 
-def findMP3Files(libPath):
-    os.chdir(libPath)
-    logging.info("Changing to directory: " + libPath)
-    for file in glob.glob("*.mp3"):
-        print(file)
+def findMP3Files(libPath, verbosity):
+    if verbosity >= 2:
+        logging.info("Found the following mp3 files")
+
+    for root, directories, filenames in os.walk(libPath):
+        for filename in filenames:
+            if '.mp3' in filename:
+                if verbosity >= 2:
+                    logging.info(os.path.join(root,filename))
 
