@@ -4,14 +4,14 @@ import argparse
 import logging
 import os
 import glob
-from plugins.findmp3 import findMP3Files
+# from plugins.processMp3 import processMP3Files
 
 
 parser = argparse.ArgumentParser()
 
 def readable_dir(prospective_dir):
     if not os.path.isdir(prospective_dir):
-        raise Exception("readable_dir:{0} is not a valid path".format(prospective_dir))
+        raise Exception("reafindmp3dable_dir:{0} is not a valid path".format(prospective_dir))
     if os.access(prospective_dir, os.R_OK):
         return prospective_dir
     else:
@@ -50,7 +50,7 @@ logging.basicConfig(filename='musiclint.log',level=logging.INFO,format='%(asctim
 logging.info("******************** Start processing ********************")
 
 if args.mp3:
-    import plugins.findmp3
+    import plugins.processMp3
 
 def main():
     print("hello")
@@ -62,7 +62,7 @@ def main():
         if args.verbosity >= 1:
             logging.info("Processing mp3 files")
         
-        plugins.findmp3.findMP3Files(args.library, args.verbosity)
+        plugins.processMp3.processMP3Files(args.library, args.verbosity)
 
 
 if __name__ == "__main__":
