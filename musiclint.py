@@ -10,6 +10,9 @@ import glob
 parser = argparse.ArgumentParser()
 
 def readable_dir(prospective_dir):
+    '''
+        Validate the specified path from the optional parameter
+    '''
     if not os.path.isdir(prospective_dir):
         raise Exception("readable_dir:{0} is not a valid path".format(prospective_dir))
     if os.access(prospective_dir, os.R_OK):
@@ -29,6 +32,12 @@ parser.add_argument(
     help="Increase verbosity",
     action="count",
     default=0,
+)
+
+parser.add_argument(
+    '-V', '--version',
+    help="Display the version of this script
+    ",
 )
 
 parser.add_argument(
