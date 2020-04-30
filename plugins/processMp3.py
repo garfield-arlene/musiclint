@@ -23,13 +23,15 @@ def processMP3Files(libPath, verbosity):
                 # read mp3 tags
                 print(filename)
                 mp3 = MP3File(os.path.join(root,filename))
-                # tags = mp3.get_tags()
-                # pprint(tags)
                 checkAlbum(mp3)
-                exit()
+                print('\n')
+                # exit()
 
                 # search online music DB & pull tags
                 # compaire DB tags & file tags
+
+    logging.info("End\n")
+
 
 def checkAlbum(song):
     '''
