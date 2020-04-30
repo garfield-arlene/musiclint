@@ -9,4 +9,6 @@ Usage
 -------
 musiclint.py [-v] -l /path/to/directory
 
-
+TESTS
+------
+pytest tests/test_*
