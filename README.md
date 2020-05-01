@@ -12,3 +12,11 @@ musiclint.py [-v] -l /path/to/directory
 TESTS
 ------
 pytest tests/test_*
+
+
+TO DO:
+* Take the found file,album, and band found from the filesystem and pass it to the OLMDB query
+* Add verbosity to logging for changes and tags
+* Add optional config file 
+* Read config file if argument is not supplied
+* Save supplied arguments to config file if not found in the config file
