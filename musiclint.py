@@ -3,10 +3,14 @@ import os
 import glob
 from plugins.cliArgs import cliArgs
 from plugins.logIT import logIT
-# from plugins.processMp3 import processMP3Files
+
 
 
 def main():
+    if args.database:
+        print("Using Discogs.com for online DB\n")
+        import plugins.queryDiscogs
+
     if args.mp3:
         import plugins.processMp3
 
@@ -17,7 +21,7 @@ def main():
             if args.verbosity:
                 logger.write("Processing mp3 files")
 
-            plugins.processMp3.processMP3Files(args.library, args.verbosity)
+            plugins.processMp3.processMP3Files(args.library, args.verbosity, args.database)
 
 
 if __name__ == "__main__":

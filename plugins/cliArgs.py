@@ -8,7 +8,6 @@ class cliArgs:
         self.parser.add_argument(
             '-l', '--library',
             type=self.readable_dir,
-            # action="store_true",
             help="Specify the music library root directory",
         )
 
@@ -17,6 +16,12 @@ class cliArgs:
             help="Increase verbosity",
             action="count",
             default=0,
+        )
+
+        self.parser.add_argument(
+            '-d', '--database',
+            type=self.usableDB,
+            help="Specify the music library root directory",
         )
 
         self.parser.add_argument(
@@ -40,6 +45,17 @@ class cliArgs:
             return prospective_dir
         else:
             raise Exception("readable_dir:{0} is not a readable dir".format(prospective_dir))
+
+    def usableDB(self,prospective_db):
+        '''
+            Validate the specified online DB providor from the optional parameter
+        '''
+        validDBList = ['discogs']
+        if prospective_db in validDBList:
+            return prospective_db
+        else:
+            raise Exception("usableDB:{0} is not a valid DB".format(prospective_db))
+
 
     @property
     def args(self):
