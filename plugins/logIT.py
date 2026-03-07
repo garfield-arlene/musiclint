@@ -10,7 +10,8 @@ class logIT:
             filename=self.log_location,
             level=logging.INFO,
             format='%(asctime)s - %(message)s',
-            datefmt='%m/%d/%Y %I:%M:%S %p'
+            datefmt='%m/%d/%Y %I:%M:%S %p',
+            force=True
         )
         if message == None:
             logging.info(

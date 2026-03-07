@@ -96,13 +96,14 @@ def test_verbosity_logs_filenames(mock_plugin, mock_check, mock_mp3, mp3_dir, ca
 
 def test_checkAlbum_reads_album_tag():
     mock_song = MagicMock()
-    mock_song.album = [None, "('tag', 'Thriller')"]
+    # checkAlbum splits alb[1] by ':' — value must contain ':' to avoid IndexError
+    mock_song.album = [None, "('tag', 'Artist: Thriller')"]
     # Should not raise
     checkAlbum(mock_song)
 
 
 def test_checkAlbum_calls_song_album():
     mock_song = MagicMock()
-    mock_song.album = [None, "('tag', 'Some Album')"]
+    mock_song.album = [None, "('tag', 'Artist: Some Album')"]
     checkAlbum(mock_song)
     _ = mock_song.album  # verify property was accessed

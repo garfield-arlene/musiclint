@@ -1,5 +1,4 @@
 #!/usr/bin/env python3
-import logging
 import os
 import tempfile
 import pytest
@@ -12,8 +11,6 @@ def log_file():
     with tempfile.NamedTemporaryFile(suffix=".log", delete=False) as f:
         path = f.name
     yield path
-    # Reset root logger handlers so basicConfig works fresh in each test
-    logging.root.handlers = []
     os.remove(path)
 
 
@@ -40,11 +37,8 @@ def test_write_custom_message(log_file):
 
 
 def test_write_appends_multiple_messages(log_file):
-    logger = logIT(log_file)
-    logger.write("first")
-    logging.root.handlers = []
-    logger2 = logIT(log_file)
-    logger2.write("second")
+    logIT(log_file).write("first")
+    logIT(log_file).write("second")
     with open(log_file) as f:
         lines = f.readlines()
     assert len(lines) >= 2
