@@ -5,6 +5,7 @@
 # See README.md for further documentation.
 #
 import json
+import os
 import sys
 import urllib.parse
 # from urllib.parse import urlparse
@@ -24,8 +25,10 @@ def authDiscogs(libPath, verbosity):
     # and registered . See http://www.discogs.com/settings/developers . These credentials
     # are assigned by application and remain static for the lifetime of your discogs application.
     # the consumer details below were generated for the 'discogs-oauth-example' application.
-    consumer_key = 'rKKgbAibQGfTgxmtDMls'
-    consumer_secret = 'uwLznJZkzrDDpCOUqpQceljXTyQMUEKA'
+    consumer_key = os.environ.get('DISCOGS_CONSUMER_KEY')
+    consumer_secret = os.environ.get('DISCOGS_CONSUMER_SECRET')
+    if not consumer_key or not consumer_secret:
+        sys.exit('Error: DISCOGS_CONSUMER_KEY and DISCOGS_CONSUMER_SECRET environment variables must be set.')
 
     # The following oauth end-points are defined by discogs.com staff. These static endpoints
     # are called at various stages of oauth handshaking.

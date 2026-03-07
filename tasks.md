@@ -2,7 +2,7 @@
 
 ## Critical
 
-- [ ] **#1 — Revoke and replace hardcoded OAuth credentials** (`queryDiscogs.py:27-28`)
+- [x] **#1 — Revoke and replace hardcoded OAuth credentials** (`queryDiscogs.py:27-28`)
   - Revoke the exposed `consumer_key` and `consumer_secret` on Discogs immediately
   - Move credentials to environment variables or a `.env` file
   - Add `.env` to `.gitignore`
