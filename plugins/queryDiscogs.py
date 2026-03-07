@@ -8,6 +8,7 @@ import json
 import os
 import sys
 import urllib.parse
+import urllib.request
 # from urllib.parse import urlparse
 import pprint
 
@@ -106,7 +107,6 @@ def authDiscogs(libPath, verbosity):
     client = oauth.Client(consumer, token)
 
     resp, content = client.request(access_token_url, 'POST', headers={'User-Agent': user_agent})
-    UjugggWWDj
     # other local store. All further requests to the discogs.com API that require authentication
     # and must be made with these access_tokens.
     # access_token = dict(urlparse.parse_qsl(content))
@@ -135,7 +135,7 @@ def queryDiscogs(libPath, verbosity):
         Query Discogs online music DB 
     '''
 
-    if (at is none):
+    if (at is None):
         authDiscogs()
 
     # We're now able to fetch an image using the application consumer key and secret,
@@ -182,9 +182,10 @@ def queryDiscogs(libPath, verbosity):
     # build, send the HTTP GET request for the desired image.
     # DOCS: http://www.discogs.com/forum/thread/410594
     try:
-        urllib.urlretrieve(image, image.split('/')[-1])
-    except:
-        sys.exit('Unable to download image {0}'.format(image))
+        filename = os.path.basename(urllib.parse.urlparse(image).path)
+        urllib.request.urlretrieve(image, filename)
+    except Exception as e:
+        sys.exit('Unable to download image {0}: {1}'.format(image, e))
 
     print(' == API image request ==')
     print('    * response status      = {0}'.format(resp['status']))

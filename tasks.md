@@ -10,17 +10,17 @@
 
 ## High
 
-- [ ] **#2 — Remove stray undefined name** (`queryDiscogs.py:106`)
+- [x] **#2 — Remove stray undefined name** (`queryDiscogs.py:106`)
   - Delete the line `UjugggWWDj` which causes a `NameError` at runtime
 
-- [ ] **#3 — Fix `none` to `None`** (`queryDiscogs.py:135`)
+- [x] **#3 — Fix `none` to `None`** (`queryDiscogs.py:135`)
   - Replace `if (at is none):` with `if (at is None):`
 
-- [ ] **#4 — Replace Python 2 `urllib.urlretrieve` and fix path traversal** (`queryDiscogs.py:182`)
+- [x] **#4 — Replace Python 2 `urllib.urlretrieve` and fix path traversal** (`queryDiscogs.py:182`)
   - Replace `urllib.urlretrieve` with `urllib.request.urlretrieve`
   - Sanitize the filename derived from the URL using `os.path.basename()` to prevent path traversal attacks
 
-- [ ] **#5 — Replace bare `except` clause** (`queryDiscogs.py:183`)
+- [x] **#5 — Replace bare `except` clause** (`queryDiscogs.py:183`)
   - Replace bare `except:` with `except Exception as e:`
   - Include the error in the exit message for better debugging
 
