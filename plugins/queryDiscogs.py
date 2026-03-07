@@ -5,6 +5,7 @@
 # See README.md for further documentation.
 #
 import json
+import logging
 import os
 import sys
 import urllib.parse
@@ -130,13 +131,14 @@ def authDiscogs(libPath, verbosity):
     print(' Authentication complete. Future requests must be signed with the above tokens.')
     print('\n')
 
+    return at, ats, consumer, user_agent
+
 def queryDiscogs(libPath, verbosity):
     '''
-        Query Discogs online music DB 
+        Query Discogs online music DB
     '''
 
-    if (at is None):
-        authDiscogs()
+    at, ats, consumer, user_agent = authDiscogs(libPath, verbosity)
 
     # We're now able to fetch an image using the application consumer key and secret,
     # along with the verified oauth token and oauth token for this user.
@@ -144,7 +146,7 @@ def queryDiscogs(libPath, verbosity):
             secret=ats)
     client = oauth.Client(consumer, token)
 
-    # With an active auth token, we're able to reuse the client object and request 
+    # With an active auth token, we're able to reuse the client object and request
     # additional discogs authenticated endpoints, such as database search.
     resp, content = client.request('https://api.discogs.com/database/search?release_title=House+For+All&artist=Blunted+Dummies',
             headers={'User-Agent': user_agent})

@@ -31,9 +31,6 @@ def processMP3Files(libPath, verbosity, database):
                 checkAlbum(mp3)
                 print('\n')
 
-                
-                break
-
                 # search online music DB & pull tags
                 # compaire DB tags & file tags
     logging.info("End\n")

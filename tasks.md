@@ -26,13 +26,13 @@
 
 ## Medium
 
-- [ ] **#6 — Add missing `logging` import** (`queryDiscogs.py:21`)
+- [x] **#6 — Add missing `logging` import** (`queryDiscogs.py:21`)
   - Add `import logging` at the top of `queryDiscogs.py`
 
-- [ ] **#7 — Fix undefined variable scope between `authDiscogs` and `queryDiscogs`** (`queryDiscogs.py:130-147`)
+- [x] **#7 — Fix undefined variable scope between `authDiscogs` and `queryDiscogs`** (`queryDiscogs.py:130-147`)
   - Variables `at`, `ats`, `consumer`, and `user_agent` are defined in `authDiscogs()` but used in `queryDiscogs()` without being passed or returned
   - Refactor `authDiscogs()` to return these values
   - Update `queryDiscogs()` to accept them as parameters
 
-- [ ] **#8 — Remove early `break` from file processing loop** (`processMp3.py:35`)
+- [x] **#8 — Remove early `break` from file processing loop** (`processMp3.py:35`)
   - Remove the `break` statement that causes only one `.mp3` file per directory to be processed
