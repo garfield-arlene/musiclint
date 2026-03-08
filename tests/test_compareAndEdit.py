@@ -1,8 +1,7 @@
 #!/usr/bin/env python3
 import pytest
-from unittest.mock import MagicMock, patch
+from unittest.mock import MagicMock, patch, call
 from context import __projectpath
-from mp3_tagger import VERSION_1, VERSION_2, VERSION_BOTH
 from plugins.compareAndEdit import (
     compare_tags,
     prompt_tag_resolution,
@@ -127,64 +126,47 @@ def test_prompt_resolves_multiple_tags(monkeypatch):
 
 # --- apply_tags ---
 
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_uses_version2_for_id3v2_file(mock_set_version):
+@patch("plugins.compareAndEdit.ID3")
+def test_apply_tags_saves_with_v2_and_removes_v1(mock_id3):
+    mock_tags = MagicMock()
+    mock_id3.return_value = mock_tags
     mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '2.3'
+    mock_mp3.path = "/tmp/test.mp3"
     apply_tags(mock_mp3, {'year': '2001'})
-    mock_set_version.assert_any_call(VERSION_2)
+    mock_tags.save.assert_called_once_with("/tmp/test.mp3", v1=0, v2_version=3)
 
 
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_uses_version1_for_id3v1_file(mock_set_version):
+@patch("plugins.compareAndEdit.ID3")
+def test_apply_tags_writes_correct_frames(mock_id3):
+    mock_tags = MagicMock()
+    mock_id3.return_value = mock_tags
     mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '1.1'
-    apply_tags(mock_mp3, {'year': '2001'})
-    mock_set_version.assert_any_call(VERSION_1)
+    mock_mp3.path = "/tmp/test.mp3"
+    apply_tags(mock_mp3, {'artist': 'Aerosmith', 'year': '1994'})
+    set_keys = [c.args[0] for c in mock_tags.__setitem__.call_args_list]
+    assert 'TPE1' in set_keys
+    assert 'TDRC' in set_keys
 
 
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_restores_version_both_after_save(mock_set_version):
+@patch("plugins.compareAndEdit.ID3")
+def test_apply_tags_creates_header_for_v1_only_file(mock_id3):
+    from mutagen.id3 import ID3NoHeaderError
+    mock_fallback = MagicMock()
+    mock_id3.side_effect = [ID3NoHeaderError, mock_fallback]
     mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '2.3'
-    apply_tags(mock_mp3, {'year': '2001'})
-    mock_set_version.assert_called_with(VERSION_BOTH)
-
-
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_sets_attributes_and_saves(mock_set_version):
-    mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '2.3'
-    apply_tags(mock_mp3, {'year': '2001', 'genre': 'House'})
-    assert mock_mp3.year == '2001'
-    assert mock_mp3.genre == 'House'
-    mock_mp3.save.assert_called_once()
-
-
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_maps_genre_to_int_for_v1(mock_set_version):
-    mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '1.1'
-    apply_tags(mock_mp3, {'genre': 'Rock'})
-    assert mock_mp3.genre == 17  # Rock is index 17 in ID3v1 GENRES
-
-
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_skips_unknown_genre_for_v1(mock_set_version, capsys):
-    mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '1.1'
-    apply_tags(mock_mp3, {'genre': 'Synthwave'})
-    out = capsys.readouterr().out
-    assert 'Warning' in out
-    mock_mp3.save.assert_called_once()  # still saves even if genre skipped
-
-
-@patch("plugins.compareAndEdit.MP3File.set_version")
-def test_apply_tags_empty_dict_still_saves(mock_set_version):
-    mock_mp3 = MagicMock()
-    mock_mp3.id3_version = '2.3'
+    mock_mp3.path = "/tmp/test.mp3"
+    # Should not raise even when no ID3 header exists
     apply_tags(mock_mp3, {})
-    mock_mp3.save.assert_called_once()
+
+
+@patch("plugins.compareAndEdit.ID3")
+def test_apply_tags_empty_dict_still_saves(mock_id3):
+    mock_tags = MagicMock()
+    mock_id3.return_value = mock_tags
+    mock_mp3 = MagicMock()
+    mock_mp3.path = "/tmp/test.mp3"
+    apply_tags(mock_mp3, {})
+    mock_tags.save.assert_called_once()
 
 
 # --- display_comparison ---

@@ -1,10 +1,15 @@
 #!/usr/bin/python3
 
-from mp3_tagger import VERSION_1, VERSION_2, VERSION_BOTH, MP3File
-from mp3_tagger.genres import GENRES
+from mutagen.id3 import ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TDRC, TRCK, TCON
 
-# Reverse lookup: genre string -> ID3v1 integer code
-_GENRE_TO_INT = {v: k for k, v in GENRES.items()}
+_TAG_TO_FRAME = {
+    'song':   TIT2,
+    'artist': TPE1,
+    'album':  TALB,
+    'year':   TDRC,
+    'track':  TRCK,
+    'genre':  TCON,
+}
 
 # Tag keys as used by mp3_tagger, paired with display labels
 TAGS = [
@@ -94,32 +99,19 @@ def prompt_tag_resolution(differences):
 
 def apply_tags(mp3, resolved_tags):
     '''
-    Write resolved tag values back to the MP3File object and save to disk.
-
-    Uses VERSION_1 for ID3v1-only files and VERSION_2 for files that already
-    have an ID3v2 header. Restores VERSION_BOTH afterwards so subsequent reads
-    in the same session are unaffected.
-
-    For ID3v1 files, genre must be a standard integer-coded genre. If the
-    chosen genre string is not in the ID3v1 genre list it is skipped with a
-    warning rather than raising an error.
+    Write resolved tags to the file as ID3v2.3, removing any ID3v1 tags.
+    Uses mutagen so that v1-only files are correctly upgraded to v2.
     '''
-    is_v1_only = mp3.id3_version == '1.1'
-    MP3File.set_version(VERSION_1 if is_v1_only else VERSION_2)
+    try:
+        tags = ID3(mp3.path)
+    except ID3NoHeaderError:
+        tags = ID3()
 
-    skipped = []
     for tag, value in resolved_tags.items():
-        if is_v1_only and tag == 'genre':
-            genre_int = _GENRE_TO_INT.get(value)
-            if genre_int is None:
-                skipped.append(value)
-                continue
-            value = genre_int
-        setattr(mp3, tag, value)
+        frame_cls = _TAG_TO_FRAME.get(tag)
+        if frame_cls:
+            tags[frame_cls.__name__] = frame_cls(encoding=3, text=value)
 
-    mp3.save()
-    MP3File.set_version(VERSION_BOTH)  # restore for subsequent reads
-
-    for genre_val in skipped:
-        print(f"  Warning: '{genre_val}' is not a standard ID3v1 genre — genre tag not saved.")
+    # v1=0 deletes any ID3v1 tag; v2_version=3 writes ID3v2.3
+    tags.save(mp3.path, v1=0, v2_version=3)
     print("  Tags saved.\n")

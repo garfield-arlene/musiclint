@@ -13,7 +13,7 @@ import urllib.request
 # from urllib.parse import urlparse
 import pprint
 
-import oauth2 as oauth
+import plugins.oauth2_compat as oauth
 
 
 def authDiscogs(libPath, verbosity):

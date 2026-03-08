@@ -1,8 +1,11 @@
 #!/usr/bin/env python3.7
 import os
 import glob
+from dotenv import load_dotenv
 from plugins.cliArgs import cliArgs
 from plugins.logIT import logIT
+
+load_dotenv()
 
 
 
