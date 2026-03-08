@@ -81,11 +81,19 @@ def processMP3Files(libPath, verbosity, database):
                     auth_data = authDiscogs(libPath, verbosity)
 
                 at, ats, consumer, user_agent = auth_data
+
+                # Use directory names as reliable hints:
+                # typical layout is Library/Artist/Album/track.mp3
+                dir_album  = os.path.basename(root)
+                dir_artist = os.path.basename(os.path.dirname(root))
+
                 discogs_tags = search_track(
                     file_tags.get('artist', ''),
                     file_tags.get('album', ''),
                     file_tags.get('song', ''),
                     at, ats, consumer, user_agent,
+                    dir_artist=dir_artist,
+                    dir_album=dir_album,
                 )
 
                 if discogs_tags:

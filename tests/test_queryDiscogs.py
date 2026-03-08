@@ -113,3 +113,56 @@ def test_queryDiscogs_exits_on_bad_search_response(mock_oauth, mock_auth):
     from plugins.queryDiscogs import queryDiscogs
     with pytest.raises(SystemExit):
         queryDiscogs("/some/path", 0)
+
+
+# --- search_track ---
+
+@patch("plugins.queryDiscogs.oauth")
+def test_search_track_prefers_dir_hints(mock_oauth):
+    mock_client = MagicMock()
+    search_results = b'{"results": [{"id": 1, "title": "An Album", "year": "2000", "type": "release"}]}'
+    release_data = b'{"title": "An Album", "year": 2000, "artists": [{"name": "Artist"}], "genres": ["Rock"], "tracklist": []}'
+
+    mock_client.request.side_effect = [
+        ({"status": "200"}, search_results),
+        ({"status": "200"}, release_data),
+    ]
+    mock_oauth.Token.return_value = MagicMock()
+    mock_oauth.Client.return_value = mock_client
+
+    from plugins.queryDiscogs import search_track
+    with patch("builtins.input", return_value="1"):
+        result = search_track("Aerosmith", "Bad Tag (Disc", "Cryin",
+                              "at", "ats", MagicMock(), "agent/1.0",
+                              dir_artist="Aerosmith", dir_album="A Little South Of Sanity")
+
+    # First search should use dir hints
+    first_call_url = mock_client.request.call_args_list[0][0][0]
+    assert "A+Little+South+Of+Sanity" in first_call_url or "A Little South Of Sanity" in first_call_url
+
+
+@patch("plugins.queryDiscogs.oauth")
+def test_search_track_returns_none_when_user_skips(mock_oauth):
+    mock_client = MagicMock()
+    search_results = b'{"results": [{"id": 1, "title": "An Album", "year": "2000", "type": "release"}]}'
+    mock_client.request.return_value = ({"status": "200"}, search_results)
+    mock_oauth.Token.return_value = MagicMock()
+    mock_oauth.Client.return_value = mock_client
+
+    from plugins.queryDiscogs import search_track
+    with patch("builtins.input", return_value="s"):
+        result = search_track("Aerosmith", "A Little South Of Sanity", "Cryin",
+                              "at", "ats", MagicMock(), "agent/1.0")
+    assert result is None
+
+
+@patch("plugins.queryDiscogs.oauth")
+def test_search_track_returns_none_on_no_results(mock_oauth):
+    mock_client = MagicMock()
+    mock_client.request.return_value = ({"status": "200"}, b'{"results": []}')
+    mock_oauth.Token.return_value = MagicMock()
+    mock_oauth.Client.return_value = mock_client
+
+    from plugins.queryDiscogs import search_track
+    result = search_track("Nobody", "", "", "at", "ats", MagicMock(), "agent/1.0")
+    assert result is None

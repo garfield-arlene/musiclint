@@ -160,49 +160,74 @@ def _discogs_search(client, user_agent, params):
     return results if results.get('results') else None
 
 
-def search_track(artist, album, track, at, ats, consumer, user_agent):
+def _pick_release(results):
     '''
-    Search Discogs for a release matching artist and album, then return
-    a dict of tags suitable for comparison. Optionally matches a specific
-    track title within the release tracklist.
+    Show the user the top Discogs results and let them pick one.
+    Returns the chosen release dict, or None if skipped.
+    '''
+    hits = results['results'][:5]
+    print("\n  Discogs results:")
+    for i, r in enumerate(hits):
+        print(f"    [{i+1}] {r.get('title', 'Unknown')} ({r.get('year', '?')}) — {r.get('type', '')}")
+    print(f"    [s] Skip / no match")
 
-    Falls back to searching by artist + track title if the album search
-    returns no results (handles truncated or corrupt album tags).
+    while True:
+        choice = input("  Select result [1-{0}/s]: ".format(len(hits))).strip().lower()
+        if choice == 's':
+            return None
+        if choice.isdigit() and 1 <= int(choice) <= len(hits):
+            return hits[int(choice) - 1]
+        print("  Invalid choice.")
 
-    Returns None if no results are found or the request fails.
+
+def search_track(artist, album, track, at, ats, consumer, user_agent,
+                 dir_artist=None, dir_album=None):
+    '''
+    Search Discogs for a release and return a tag dict for comparison.
+
+    Uses directory-name hints (dir_artist, dir_album) as the primary search
+    since file tags may be truncated or corrupt. Falls back through:
+      1. dir_artist + dir_album  (directory hints)
+      2. tag artist  + dir_album (mix)
+      3. artist + cleaned tag album
+      4. artist + track title
+      5. artist only
+
+    Presents the top results to the user to confirm the correct release.
+    Returns None if no results are found or the user skips.
     '''
     token = oauth.Token(key=at, secret=ats)
     client = oauth.Client(consumer, token)
 
     clean_album = _clean_album(album)
 
-    # Strategy 1: artist + album
-    results = _discogs_search(client, user_agent, {k: v for k, v in {
-        'artist':        artist,
-        'release_title': clean_album,
-        'type':          'release',
-    }.items() if v})
+    strategies = []
+    if dir_artist and dir_album:
+        strategies.append({'artist': dir_artist, 'release_title': dir_album, 'type': 'release'})
+    if artist and dir_album:
+        strategies.append({'artist': artist, 'release_title': dir_album, 'type': 'release'})
+    if artist and clean_album:
+        strategies.append({'artist': artist, 'release_title': clean_album, 'type': 'release'})
+    if artist and track:
+        strategies.append({'artist': artist, 'track': track, 'type': 'release'})
+    if artist:
+        strategies.append({'artist': artist, 'type': 'release'})
 
-    # Strategy 2: artist + track title
-    if not results:
-        results = _discogs_search(client, user_agent, {k: v for k, v in {
-            'artist': artist,
-            'track':  track,
-            'type':   'release',
-        }.items() if v})
-
-    # Strategy 3: artist only
-    if not results:
-        results = _discogs_search(client, user_agent, {k: v for k, v in {
-            'artist': artist,
-            'type':   'release',
-        }.items() if v})
+    results = None
+    for params in strategies:
+        results = _discogs_search(client, user_agent, {k: v for k, v in params.items() if v})
+        if results:
+            print(f"  Discogs search: {', '.join(f'{k}={v}' for k, v in params.items() if k != 'type')}")
+            break
 
     if not results:
         return None
 
-    # Fetch full release data for the top result
-    release_id = results['results'][0]['id']
+    chosen = _pick_release(results)
+    if not chosen:
+        return None
+
+    release_id = chosen['id']
     resp, content = client.request(
         f'https://api.discogs.com/releases/{release_id}',
         headers={'User-Agent': user_agent}
