@@ -133,6 +133,73 @@ def authDiscogs(libPath, verbosity):
 
     return at, ats, consumer, user_agent
 
+
+def search_track(artist, album, track, at, ats, consumer, user_agent):
+    '''
+    Search Discogs for a release matching artist and album, then return
+    a dict of tags suitable for comparison. Optionally matches a specific
+    track title within the release tracklist.
+    Returns None if no results are found or the request fails.
+    '''
+    token = oauth.Token(key=at, secret=ats)
+    client = oauth.Client(consumer, token)
+
+    # Build search query from whichever fields are available
+    params = {k: v for k, v in {
+        'artist':        artist,
+        'release_title': album,
+        'type':          'release',
+    }.items() if v}
+
+    resp, content = client.request(
+        'https://api.discogs.com/database/search?' + urllib.parse.urlencode(params),
+        headers={'User-Agent': user_agent}
+    )
+
+    if resp['status'] != '200':
+        return None
+
+    results = json.loads(content)
+    if not results.get('results'):
+        return None
+
+    # Fetch full release data for the top result
+    release_id = results['results'][0]['id']
+    resp, content = client.request(
+        f'https://api.discogs.com/releases/{release_id}',
+        headers={'User-Agent': user_agent}
+    )
+
+    if resp['status'] != '200':
+        return None
+
+    release = json.loads(content)
+
+    # Strip trailing Discogs disambiguation numbers from artist names e.g. "Artist (2)"
+    artists = ', '.join(
+        a['name'].rstrip(' ()0123456789')
+        for a in release.get('artists', [])
+    )
+
+    discogs_tags = {
+        'artist': artists,
+        'album':  release.get('title', ''),
+        'year':   str(release.get('year', '')),
+        'genre':  ', '.join(release.get('genres', [])),
+        'song':   '',
+        'track':  '',
+    }
+
+    # Try to match the specific track by title
+    for t in release.get('tracklist', []):
+        if track and track.lower() in t.get('title', '').lower():
+            discogs_tags['song']  = t['title']
+            discogs_tags['track'] = t.get('position', '')
+            break
+
+    return discogs_tags
+
+
 def queryDiscogs(libPath, verbosity):
     '''
         Query Discogs online music DB
