@@ -134,33 +134,71 @@ def authDiscogs(libPath, verbosity):
     return at, ats, consumer, user_agent
 
 
+def _clean_album(album):
+    '''
+    Remove trailing truncated parenthetical from an album name.
+    e.g. "A Little South Of Sanity (Disc" -> "A Little South Of Sanity"
+    '''
+    if not album:
+        return album
+    # If there's an unclosed '(' near the end, strip from it
+    idx = album.rfind('(')
+    if idx != -1 and ')' not in album[idx:]:
+        return album[:idx].strip()
+    return album
+
+
+def _discogs_search(client, user_agent, params):
+    '''Execute a Discogs search and return parsed results, or None.'''
+    resp, content = client.request(
+        'https://api.discogs.com/database/search?' + urllib.parse.urlencode(params),
+        headers={'User-Agent': user_agent}
+    )
+    if resp['status'] != '200':
+        return None
+    results = json.loads(content)
+    return results if results.get('results') else None
+
+
 def search_track(artist, album, track, at, ats, consumer, user_agent):
     '''
     Search Discogs for a release matching artist and album, then return
     a dict of tags suitable for comparison. Optionally matches a specific
     track title within the release tracklist.
+
+    Falls back to searching by artist + track title if the album search
+    returns no results (handles truncated or corrupt album tags).
+
     Returns None if no results are found or the request fails.
     '''
     token = oauth.Token(key=at, secret=ats)
     client = oauth.Client(consumer, token)
 
-    # Build search query from whichever fields are available
-    params = {k: v for k, v in {
+    clean_album = _clean_album(album)
+
+    # Strategy 1: artist + album
+    results = _discogs_search(client, user_agent, {k: v for k, v in {
         'artist':        artist,
-        'release_title': album,
+        'release_title': clean_album,
         'type':          'release',
-    }.items() if v}
+    }.items() if v})
 
-    resp, content = client.request(
-        'https://api.discogs.com/database/search?' + urllib.parse.urlencode(params),
-        headers={'User-Agent': user_agent}
-    )
+    # Strategy 2: artist + track title
+    if not results:
+        results = _discogs_search(client, user_agent, {k: v for k, v in {
+            'artist': artist,
+            'track':  track,
+            'type':   'release',
+        }.items() if v})
 
-    if resp['status'] != '200':
-        return None
+    # Strategy 3: artist only
+    if not results:
+        results = _discogs_search(client, user_agent, {k: v for k, v in {
+            'artist': artist,
+            'type':   'release',
+        }.items() if v})
 
-    results = json.loads(content)
-    if not results.get('results'):
+    if not results:
         return None
 
     # Fetch full release data for the top result

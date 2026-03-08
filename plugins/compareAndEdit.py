@@ -1,5 +1,7 @@
 #!/usr/bin/python3
 
+from mp3_tagger import VERSION_2
+
 # Tag keys as used by mp3_tagger, paired with display labels
 TAGS = [
     ('song',   'Title'),
@@ -89,7 +91,10 @@ def prompt_tag_resolution(differences):
 def apply_tags(mp3, resolved_tags):
     '''
     Write resolved tag values back to the MP3File object and save to disk.
+    Switches to VERSION_2 (ID3v2) before writing to avoid TagSetError on
+    tags that do not support simultaneous multi-version writes.
     '''
+    mp3.version = VERSION_2
     for tag, value in resolved_tags.items():
         setattr(mp3, tag, value)
     mp3.save()
