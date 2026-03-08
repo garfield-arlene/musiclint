@@ -180,21 +180,19 @@ def _pick_release(results):
         print("  Invalid choice.")
 
 
-def search_track(artist, album, track, at, ats, consumer, user_agent,
-                 dir_artist=None, dir_album=None):
+def find_releases(artist, album, track, at, ats, consumer, user_agent,
+                  dir_artist=None, dir_album=None):
     '''
-    Search Discogs for a release and return a tag dict for comparison.
+    Search Discogs using multiple fallback strategies and return
+    (results, client, user_agent) so the caller can pick a release and
+    re-pick if needed. Returns (None, None, None) if nothing is found.
 
-    Uses directory-name hints (dir_artist, dir_album) as the primary search
-    since file tags may be truncated or corrupt. Falls back through:
-      1. dir_artist + dir_album  (directory hints)
-      2. tag artist  + dir_album (mix)
+    Search priority:
+      1. dir_artist + dir_album  (directory hints — most reliable)
+      2. tag artist  + dir_album
       3. artist + cleaned tag album
       4. artist + track title
       5. artist only
-
-    Presents the top results to the user to confirm the correct release.
-    Returns None if no results are found or the user skips.
     '''
     token = oauth.Token(key=at, secret=ats)
     client = oauth.Client(consumer, token)
@@ -213,21 +211,20 @@ def search_track(artist, album, track, at, ats, consumer, user_agent,
     if artist:
         strategies.append({'artist': artist, 'type': 'release'})
 
-    results = None
     for params in strategies:
         results = _discogs_search(client, user_agent, {k: v for k, v in params.items() if v})
         if results:
             print(f"  Discogs search: {', '.join(f'{k}={v}' for k, v in params.items() if k != 'type')}")
-            break
+            return results, client, user_agent
 
-    if not results:
-        return None
+    return None, None, None
 
-    chosen = _pick_release(results)
-    if not chosen:
-        return None
 
-    release_id = chosen['id']
+def fetch_release(client, user_agent, release_id, track):
+    '''
+    Fetch full release data for a given Discogs release ID and return
+    a tag dict suitable for comparison. Returns None on failure.
+    '''
     resp, content = client.request(
         f'https://api.discogs.com/releases/{release_id}',
         headers={'User-Agent': user_agent}
@@ -261,6 +258,25 @@ def search_track(artist, album, track, at, ats, consumer, user_agent,
             break
 
     return discogs_tags
+
+
+def search_track(artist, album, track, at, ats, consumer, user_agent,
+                 dir_artist=None, dir_album=None):
+    '''
+    Convenience wrapper: search, pick the first user-selected release, and
+    return its tag dict. Use find_releases + _pick_release + fetch_release
+    directly when re-picking between releases is needed.
+    '''
+    results, client, user_agent = find_releases(
+        artist, album, track, at, ats, consumer, user_agent,
+        dir_artist=dir_artist, dir_album=dir_album,
+    )
+    if not results:
+        return None
+    chosen = _pick_release(results)
+    if not chosen:
+        return None
+    return fetch_release(client, user_agent, chosen['id'], track)
 
 
 def queryDiscogs(libPath, verbosity):

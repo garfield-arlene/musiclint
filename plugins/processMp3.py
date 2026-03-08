@@ -4,7 +4,7 @@ import logging
 import os
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from plugins.plugins import chooseDBPlugin
-from plugins.queryDiscogs import authDiscogs, search_track
+from plugins.queryDiscogs import authDiscogs, search_track, find_releases, fetch_release, _pick_release
 from plugins.compareAndEdit import (
     display_comparison,
     compare_tags,
@@ -87,7 +87,7 @@ def processMP3Files(libPath, verbosity, database):
                 dir_album  = os.path.basename(root)
                 dir_artist = os.path.basename(os.path.dirname(root))
 
-                discogs_tags = search_track(
+                results, dclient, duser_agent = find_releases(
                     file_tags.get('artist', ''),
                     file_tags.get('album', ''),
                     file_tags.get('song', ''),
@@ -96,8 +96,42 @@ def processMP3Files(libPath, verbosity, database):
                     dir_album=dir_album,
                 )
 
-                if discogs_tags:
+                if not results:
+                    print("  No Discogs results found for this file.")
+                    _display_file_tags(filename, file_tags)
+                    continue
+
+                while True:
+                    chosen = _pick_release(results)
+                    if not chosen:
+                        print("  Skipping file.\n")
+                        break
+
+                    discogs_tags = fetch_release(
+                        dclient, duser_agent, chosen['id'], file_tags.get('song', '')
+                    )
+                    if not discogs_tags:
+                        print("  Could not fetch release data. Try another.\n")
+                        continue
+
                     display_comparison(filename, file_tags, discogs_tags)
+
+                    print("  [c] Continue resolving tags")
+                    print("  [r] Pick a different album")
+                    print("  [s] Skip this file")
+                    while True:
+                        action = input("  Choice [c/r/s]: ").strip().lower()
+                        if action in ('c', 'r', 's'):
+                            break
+                        print("  Invalid choice. Enter c, r, or s.")
+
+                    if action == 's':
+                        print("  Skipping file.\n")
+                        break
+                    if action == 'r':
+                        continue
+
+                    # action == 'c': resolve and save
                     differences = compare_tags(file_tags, discogs_tags)
                     if differences:
                         resolved = prompt_tag_resolution(differences)
@@ -105,9 +139,7 @@ def processMP3Files(libPath, verbosity, database):
                             apply_tags(mp3, resolved)
                     else:
                         print("  All tags match.\n")
-                else:
-                    print("  No Discogs results found for this file.")
-                    _display_file_tags(filename, file_tags)
+                    break
             else:
                 _display_file_tags(filename, file_tags)
 
