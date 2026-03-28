@@ -5,7 +5,7 @@ from dotenv import load_dotenv
 from plugins.cliArgs import cliArgs
 from plugins.logIT import logIT
 
-__version__ = '1.1.0'
+__version__ = '1.2.0'
 
 load_dotenv()
 
@@ -16,17 +16,26 @@ def main():
         print("Using Discogs.com for online DB\n")
         import plugins.queryDiscogs
 
-    if args.mp3:
+    process_mp3  = args.mp3  or args.all
+    process_flac = args.flac or args.all
+
+    if process_mp3:
         import plugins.processMp3
 
         if args.verbosity:
             logger.write("Library directory: " + args.library)
+            logger.write("Processing mp3 files")
 
-        if args.mp3:
-            if args.verbosity:
-                logger.write("Processing mp3 files")
+        plugins.processMp3.processMP3Files(args.library, args.verbosity, args.database)
 
-            plugins.processMp3.processMP3Files(args.library, args.verbosity, args.database)
+    if process_flac:
+        import plugins.processFlac
+
+        if args.verbosity:
+            logger.write("Library directory: " + args.library)
+            logger.write("Processing flac files")
+
+        plugins.processFlac.processFLACFiles(args.library, args.verbosity, args.database)
 
 
 if __name__ == "__main__":
