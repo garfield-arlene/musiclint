@@ -1,4 +1,4 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 from context import __projectpath
 from plugins.logIT import logIT
 

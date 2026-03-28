@@ -1,9 +1,11 @@
-#!/usr/bin/env python3.7
+#!/usr/bin/env python3
 import os
 import glob
 from dotenv import load_dotenv
 from plugins.cliArgs import cliArgs
 from plugins.logIT import logIT
+
+__version__ = '1.1.0'
 
 load_dotenv()
 

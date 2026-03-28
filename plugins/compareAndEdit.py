@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 from mutagen.id3 import ID3, ID3NoHeaderError, TIT2, TPE1, TALB, TDRC, TRCK, TCON
 
@@ -21,25 +21,35 @@ TAGS = [
     ('genre',  'Genre'),
 ]
 
-_COL = 30  # column width for tag values
-
-
 def display_comparison(filename, file_tags, discogs_tags):
     '''
     Print a side-by-side comparison table of file tags vs Discogs tags.
-    Rows with differing values are flagged.
+    Rows with differing values are marked with *.
+    Column widths adjust to fit the longest value in each column.
     '''
-    print(f"\n{'=' * 74}")
-    print(f"  File: {filename}")
-    print(f"{'=' * 74}")
-    print(f"  {'TAG':<10} {'FILE VALUE':<{_COL}} {'DISCOGS VALUE':<{_COL}}")
-    print(f"  {'-' * 70}")
+    rows = []
     for key, label in TAGS:
-        f_val = file_tags.get(key, '') or ''
-        d_val = discogs_tags.get(key, '') or ''
-        flag = '  <-- DIFFERS' if f_val != d_val else ''
-        print(f"  {label:<10} {f_val:<{_COL}} {d_val:<{_COL}}{flag}")
-    print(f"{'=' * 74}\n")
+        f_val = str(file_tags.get(key, '') or '').strip()
+        d_val = str(discogs_tags.get(key, '') or '').strip()
+        rows.append((label, f_val, d_val, f_val != d_val))
+
+    w_tag  = max(len('Tag'),     *(len(r[0]) for r in rows))
+    w_file = max(len('File'),    *(len(r[1]) for r in rows))
+    w_disc = max(len('Discogs'), *(len(r[2]) for r in rows))
+    total  = 2 + w_tag + 2 + w_file + 2 + w_disc
+
+    border = '=' * total
+    rule   = '  ' + '-' * w_tag + '  ' + '-' * w_file + '  ' + '-' * w_disc
+
+    print(f'\n{border}')
+    print(f'  File: {filename}')
+    print(f'{border}')
+    print(f'  {"Tag":<{w_tag}}  {"File":<{w_file}}  {"Discogs":<{w_disc}}')
+    print(rule)
+    for label, f_val, d_val, differs in rows:
+        marker = '*' if differs else ' '
+        print(f'{marker} {label:<{w_tag}}  {f_val:<{w_file}}  {d_val:<{w_disc}}')
+    print(f'{border}\n')
 
 
 def compare_tags(file_tags, discogs_tags):
@@ -97,21 +107,48 @@ def prompt_tag_resolution(differences):
     return resolved
 
 
-def apply_tags(mp3, resolved_tags):
+_FRAME_TO_TAG = {v.__name__: k for k, v in _TAG_TO_FRAME.items()}
+
+
+def read_tags(filepath):
+    '''
+    Read ID3 tags from filepath using mutagen.
+    Returns a dict matching the TAGS schema, or None if the file cannot be read.
+    '''
+    try:
+        tags = ID3(filepath)
+    except ID3NoHeaderError:
+        return {k: '' for k, _ in TAGS}
+    except Exception:
+        return None
+    return {
+        tag_key: str(tags[frame_name]) if frame_name in tags else ''
+        for frame_name, tag_key in _FRAME_TO_TAG.items()
+    }
+
+
+def apply_tags(filepath, resolved_tags):
     '''
     Write resolved tags to the file as ID3v2.3, removing any ID3v1 tags.
     Uses mutagen so that v1-only files are correctly upgraded to v2.
+    Raises RuntimeError with a descriptive message if saving fails.
     '''
     try:
-        tags = ID3(mp3.path)
+        tags = ID3(filepath)
     except ID3NoHeaderError:
         tags = ID3()
+    except Exception as e:
+        raise RuntimeError(f"Could not read tags from {filepath}: {e}") from e
 
     for tag, value in resolved_tags.items():
         frame_cls = _TAG_TO_FRAME.get(tag)
         if frame_cls:
             tags[frame_cls.__name__] = frame_cls(encoding=3, text=value)
 
-    # v1=0 deletes any ID3v1 tag; v2_version=3 writes ID3v2.3
-    tags.save(mp3.path, v1=0, v2_version=3)
+    try:
+        # v1=0 deletes any ID3v1 tag; v2_version=3 writes ID3v2.3
+        tags.save(filepath, v1=0, v2_version=3)
+    except Exception as e:
+        raise RuntimeError(f"Could not write tags to {filepath}: {e}") from e
+
     print("  Tags saved.\n")

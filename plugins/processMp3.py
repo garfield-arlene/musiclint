@@ -1,7 +1,8 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 
 import logging
 import os
+import readline
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
 from plugins.plugins import chooseDBPlugin
 from plugins.queryDiscogs import authDiscogs, search_track, find_releases, fetch_release, _pick_release
@@ -10,24 +11,37 @@ from plugins.compareAndEdit import (
     compare_tags,
     prompt_tag_resolution,
     apply_tags,
+    read_tags,
 )
 
 _TAG_NAMES = ['song', 'artist', 'album', 'year', 'track', 'genre']
 
 
+def _input_with_default(prompt, default=''):
+    '''Show an input prompt with a pre-filled editable default value.'''
+    readline.set_startup_hook(lambda: readline.insert_text(default))
+    try:
+        return input(prompt)
+    finally:
+        readline.set_startup_hook()
+
+
 def _get_tag_value(mp3, tag_name):
     '''
     Safely extract a clean string value from an mp3_tagger property.
-    Handles both plain strings and list/tuple returns (VERSION_BOTH).
+    mp3_tagger returns plain strings for v1-only files, and a list of
+    ID3Tag objects (with a .value attribute) for files with v2 tags.
+    Iterates v2-first so the most accurate tag wins.
     '''
     try:
         val = getattr(mp3, tag_name, None)
         if val is None:
             return ''
         if isinstance(val, (list, tuple)):
-            for item in reversed(val):
-                if item is not None:
-                    return str(item).strip()
+            for item in val:
+                item_val = getattr(item, 'value', None)
+                if item_val is not None:
+                    return str(item_val).strip('\x00').strip()
             return ''
         return str(val).strip()
     except Exception:
@@ -56,91 +70,150 @@ def processMP3Files(libPath, verbosity, database):
         any differences (copy Discogs value, keep file value, or type custom).
       - Write any chosen changes back to the file.
     '''
-    if verbosity >= 2:
-        logging.info("Found the following mp3 files")
+    # Collect all mp3 files up front so we can show a total count.
+    mp3_files = [
+        os.path.join(root, f)
+        for root, _, files in os.walk(libPath)
+        for f in files
+        if f.endswith('.mp3')
+    ]
+
+    total = len(mp3_files)
+    print(f"Found {total} mp3 file(s).\n")
+
+    if not mp3_files:
+        return
 
     auth_data = None
 
-    for root, directories, filenames in os.walk(libPath):
-        for filename in filenames:
-            if not filename.endswith('.mp3'):
-                continue
+    for idx, filepath in enumerate(mp3_files, start=1):
+        root     = os.path.dirname(filepath)
+        filename = os.path.basename(filepath)
 
-            filepath = os.path.join(root, filename)
-            if verbosity >= 2:
-                logging.info(filepath)
+        if verbosity >= 2:
+            logging.info(filepath)
 
-            print(f"\nProcessing: {filename}")
+        print(f"\n[{idx}/{total}] Processing: {filename}")
+
+        try:
             mp3 = MP3File(filepath)
             file_tags = _get_file_tags(mp3)
+        except Exception as e:
+            print(f"  Could not read file: {e}  Skipping.\n")
+            continue
 
-            if database:
-                # Authenticate once for the whole session
-                if auth_data is None:
-                    print("Authenticating with Discogs...")
-                    auth_data = authDiscogs(libPath, verbosity)
+        if not database:
+            _display_file_tags(filename, file_tags)
+            continue
 
-                at, ats, consumer, user_agent = auth_data
+        # --- database path ---
 
-                # Use directory names as reliable hints:
-                # typical layout is Library/Artist/Album/track.mp3
-                dir_album  = os.path.basename(root)
-                dir_artist = os.path.basename(os.path.dirname(root))
+        if auth_data is None:
+            print("Authenticating with Discogs...")
+            auth_data = authDiscogs(libPath, verbosity)
 
-                results, dclient, duser_agent = find_releases(
-                    file_tags.get('artist', ''),
-                    file_tags.get('album', ''),
-                    file_tags.get('song', ''),
-                    at, ats, consumer, user_agent,
-                    dir_artist=dir_artist,
-                    dir_album=dir_album,
-                )
+        at, ats, consumer, user_agent = auth_data
 
-                if not results:
-                    print("  No Discogs results found for this file.")
-                    _display_file_tags(filename, file_tags)
-                    continue
+        # typical layout: Library/Artist/Album/track.mp3
+        dir_album  = os.path.basename(root)
+        dir_artist = os.path.basename(os.path.dirname(root))
 
-                while True:
-                    chosen = _pick_release(results)
-                    if not chosen:
-                        print("  Skipping file.\n")
-                        break
+        try:
+            results, dclient, duser_agent = find_releases(
+                file_tags.get('artist', ''),
+                file_tags.get('album', ''),
+                file_tags.get('song', ''),
+                at, ats, consumer, user_agent,
+                dir_artist=dir_artist,
+                dir_album=dir_album,
+            )
+        except Exception as e:
+            print(f"  Discogs search failed: {e}  Skipping file.\n")
+            continue
 
-                    discogs_tags = fetch_release(
-                        dclient, duser_agent, chosen['id'], file_tags.get('song', '')
+        if not results:
+            print("  No Discogs results found for this file.")
+            _display_file_tags(filename, file_tags)
+            continue
+
+        while True:
+            chosen = _pick_release(results, track=file_tags.get('song', ''), client=dclient, user_agent=duser_agent, dir_album=dir_album)
+            if not chosen:
+                print("  Skipping file.\n")
+                break
+
+            # Manual search: prompt for new terms and re-search
+            if isinstance(chosen, dict) and chosen.get('manual'):
+                default_track = file_tags.get('song', '') or os.path.splitext(filename)[0]
+                m_artist = _input_with_default("  Search artist: ", file_tags.get('artist', '') or dir_artist).strip()
+                m_album  = _input_with_default("  Search album:  ", file_tags.get('album', '')  or dir_album).strip()
+                m_track  = _input_with_default("  Search track:  ", default_track).strip()
+                try:
+                    new_results, new_client, new_ua = find_releases(
+                        m_artist, m_album, m_track,
+                        at, ats, consumer, user_agent,
                     )
-                    if not discogs_tags:
-                        print("  Could not fetch release data. Try another.\n")
-                        continue
+                except Exception as e:
+                    print(f"  Search failed: {e}\n")
+                    continue
+                if not new_results:
+                    print("  No results found. Try different terms.\n")
+                    continue
+                results  = new_results
+                dclient  = new_client
+                duser_agent = new_ua
+                continue
 
-                    display_comparison(filename, file_tags, discogs_tags)
+            try:
+                discogs_tags = fetch_release(
+                    dclient, duser_agent, chosen['id'], file_tags.get('song', '')
+                )
+            except Exception as e:
+                print(f"  Could not fetch release data: {e}  Try another.\n")
+                continue
 
-                    print("  [c] Continue resolving tags")
-                    print("  [r] Pick a different album")
-                    print("  [s] Skip this file")
-                    while True:
-                        action = input("  Choice [c/r/s]: ").strip().lower()
-                        if action in ('c', 'r', 's'):
-                            break
-                        print("  Invalid choice. Enter c, r, or s.")
+            if not discogs_tags:
+                print("  Could not fetch release data. Try another.\n")
+                continue
 
-                    if action == 's':
-                        print("  Skipping file.\n")
-                        break
-                    if action == 'r':
-                        continue
+            display_comparison(filename, file_tags, discogs_tags)
 
-                    # action == 'c': resolve and save
-                    differences = compare_tags(file_tags, discogs_tags)
-                    if differences:
-                        resolved = prompt_tag_resolution(differences)
-                        if resolved:
-                            apply_tags(mp3, resolved)
-                    else:
-                        print("  All tags match.\n")
+            print("  [c] Continue resolving tags")
+            print("  [r] Pick a different album")
+            print("  [s] Skip this file")
+            print("  [q] Quit")
+            while True:
+                action = input("  Choice [c/r/s/q]: ").strip().lower()
+                if action in ('c', 'r', 's', 'q'):
                     break
+                print("  Invalid choice. Enter c, r, s, or q.")
+
+            if action == 'q':
+                print("  Quitting.\n")
+                return
+            if action == 's':
+                print("  Skipping file.\n")
+                break
+            if action == 'r':
+                continue
+
+            # action == 'c': resolve and save
+            differences = compare_tags(file_tags, discogs_tags)
+            if differences:
+                resolved = prompt_tag_resolution(differences)
+                if resolved:
+                    try:
+                        apply_tags(filepath, resolved)
+                        saved = read_tags(filepath)
+                        if saved is not None:
+                            print("  Tags now on disk:")
+                            _display_file_tags(filename, saved)
+                        else:
+                            print("  Warning: could not read tags back from file.\n")
+                    except RuntimeError as e:
+                        print(f"  Error: {e}\n")
             else:
-                _display_file_tags(filename, file_tags)
+                print("  All tags match.\n")
+            break
 
     logging.info("End\n")

@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 #
 # The script will download and save a single
 # image from the discogs.com API as an example.
@@ -160,21 +160,83 @@ def _discogs_search(client, user_agent, params):
     return results if results.get('results') else None
 
 
-def _pick_release(results):
+def _album_name_matches(result_title, dir_album):
+    '''
+    Return True if dir_album appears (case-insensitively) in the Discogs
+    result title. Discogs titles are usually "Artist - Album".
+    '''
+    if not dir_album:
+        return False
+    album_part = result_title.split(' - ', 1)[-1] if ' - ' in result_title else result_title
+    return dir_album.lower() in album_part.lower() or album_part.lower() in dir_album.lower()
+
+
+def _pick_release(results, track=None, client=None, user_agent=None, dir_album=None):
     '''
     Show the user the top Discogs results and let them pick one.
+    If track/client/user_agent are provided, each result is pre-fetched to
+    check whether the track appears in its tracklist ([T] or [-]).
+    If dir_album is provided, album directory name is compared to the result
+    title ([A] match). The best match (both track and album) is recommended.
     Returns the chosen release dict, or None if skipped.
     '''
     hits = results['results'][:5]
+
+    track_flags = []
+    if track and client and user_agent:
+        print("  Checking tracklists...", end='', flush=True)
+        for r in hits:
+            try:
+                release_data = fetch_release(client, user_agent, r['id'], track)
+                found = bool(release_data and release_data.get('song'))
+            except Exception:
+                found = False
+            track_flags.append(found)
+        print()
+    else:
+        track_flags = [None] * len(hits)
+
+    album_flags = [
+        _album_name_matches(r.get('title', ''), dir_album)
+        for r in hits
+    ]
+
+    # Recommend the entry that best satisfies both checks
+    recommended = None
+    for i, (tf, af) in enumerate(zip(track_flags, album_flags)):
+        if tf and af:
+            recommended = i
+            break
+    if recommended is None:
+        for i, af in enumerate(album_flags):
+            if af:
+                recommended = i
+                break
+    if recommended is None:
+        for i, tf in enumerate(track_flags):
+            if tf:
+                recommended = i
+                break
+
+    if recommended is None:
+        print("\n  Warning: none of the results match the expected track or album directory.")
+        print("  Consider using [m] to search with different terms.\n")
+
     print("\n  Discogs results:")
-    for i, r in enumerate(hits):
-        print(f"    [{i+1}] {r.get('title', 'Unknown')} ({r.get('year', '?')}) — {r.get('type', '')}")
-    print(f"    [s] Skip / no match")
+    for i, (r, tf, af) in enumerate(zip(hits, track_flags, album_flags)):
+        t_mark = 'T' if tf else ('-' if tf is False else ' ')
+        a_mark = 'A' if af else ' '
+        rec    = ' (recommended)' if i == recommended else ''
+        print(f"    [{i+1}] [{t_mark}{a_mark}] {r.get('title', 'Unknown')} ({r.get('year', '?')}) — {r.get('type', '')}{rec}")
+    print("         T=track found  A=album dir matches  -=not found")
+    print(f"    [s] Skip / no match   [m] Manual search")
 
     while True:
-        choice = input("  Select result [1-{0}/s]: ".format(len(hits))).strip().lower()
+        choice = input("  Select result [1-{0}/s/m]: ".format(len(hits))).strip().lower()
         if choice == 's':
             return None
+        if choice == 'm':
+            return {'manual': True}
         if choice.isdigit() and 1 <= int(choice) <= len(hits):
             return hits[int(choice) - 1]
         print("  Invalid choice.")

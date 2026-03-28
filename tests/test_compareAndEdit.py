@@ -130,9 +130,7 @@ def test_prompt_resolves_multiple_tags(monkeypatch):
 def test_apply_tags_saves_with_v2_and_removes_v1(mock_id3):
     mock_tags = MagicMock()
     mock_id3.return_value = mock_tags
-    mock_mp3 = MagicMock()
-    mock_mp3.path = "/tmp/test.mp3"
-    apply_tags(mock_mp3, {'year': '2001'})
+    apply_tags("/tmp/test.mp3", {'year': '2001'})
     mock_tags.save.assert_called_once_with("/tmp/test.mp3", v1=0, v2_version=3)
 
 
@@ -140,9 +138,7 @@ def test_apply_tags_saves_with_v2_and_removes_v1(mock_id3):
 def test_apply_tags_writes_correct_frames(mock_id3):
     mock_tags = MagicMock()
     mock_id3.return_value = mock_tags
-    mock_mp3 = MagicMock()
-    mock_mp3.path = "/tmp/test.mp3"
-    apply_tags(mock_mp3, {'artist': 'Aerosmith', 'year': '1994'})
+    apply_tags("/tmp/test.mp3", {'artist': 'Aerosmith', 'year': '1994'})
     set_keys = [c.args[0] for c in mock_tags.__setitem__.call_args_list]
     assert 'TPE1' in set_keys
     assert 'TDRC' in set_keys
@@ -153,20 +149,25 @@ def test_apply_tags_creates_header_for_v1_only_file(mock_id3):
     from mutagen.id3 import ID3NoHeaderError
     mock_fallback = MagicMock()
     mock_id3.side_effect = [ID3NoHeaderError, mock_fallback]
-    mock_mp3 = MagicMock()
-    mock_mp3.path = "/tmp/test.mp3"
     # Should not raise even when no ID3 header exists
-    apply_tags(mock_mp3, {})
+    apply_tags("/tmp/test.mp3", {})
 
 
 @patch("plugins.compareAndEdit.ID3")
 def test_apply_tags_empty_dict_still_saves(mock_id3):
     mock_tags = MagicMock()
     mock_id3.return_value = mock_tags
-    mock_mp3 = MagicMock()
-    mock_mp3.path = "/tmp/test.mp3"
-    apply_tags(mock_mp3, {})
+    apply_tags("/tmp/test.mp3", {})
     mock_tags.save.assert_called_once()
+
+
+@patch("plugins.compareAndEdit.ID3")
+def test_apply_tags_raises_on_save_failure(mock_id3):
+    mock_tags = MagicMock()
+    mock_tags.save.side_effect = OSError("Permission denied")
+    mock_id3.return_value = mock_tags
+    with pytest.raises(RuntimeError, match="Could not write tags"):
+        apply_tags("/tmp/test.mp3", {'year': '2001'})
 
 
 # --- display_comparison ---
@@ -175,10 +176,12 @@ def test_display_comparison_runs_without_error(capsys):
     display_comparison("song.mp3", FILE_TAGS, DISCOGS_TAGS)
     out = capsys.readouterr().out
     assert "song.mp3" in out
-    assert "DIFFERS" in out
+    assert "*" in out  # differing rows are marked with *
 
 
 def test_display_comparison_shows_matching_tags(capsys):
     display_comparison("song.mp3", FILE_TAGS, FILE_TAGS.copy())
     out = capsys.readouterr().out
-    assert "DIFFERS" not in out
+    # no rows should be marked as differing
+    lines = [l for l in out.splitlines() if l.startswith('*')]
+    assert lines == []

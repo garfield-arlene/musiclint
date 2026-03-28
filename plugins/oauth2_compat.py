@@ -1,4 +1,4 @@
-#!/usr/bin/python3
+#!/usr/bin/env python3
 """
 Minimal oauth2-compatible shim backed by requests + requests-oauthlib.
 
