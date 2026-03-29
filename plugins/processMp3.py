@@ -3,9 +3,20 @@
 import logging
 import os
 import readline
+import sys
 from mp3_tagger import MP3File, VERSION_1, VERSION_2, VERSION_BOTH
-from plugins.plugins import chooseDBPlugin
-from plugins.queryDiscogs import authDiscogs, search_track, find_releases, fetch_release, _pick_release
+from plugins.queryDiscogs import (
+    authDiscogs,
+    find_releases as discogs_find_releases,
+    fetch_release as discogs_fetch_release,
+    _pick_release as discogs_pick_release,
+)
+from plugins.queryMusicBrainz import (
+    authMusicBrainz,
+    find_releases as mb_find_releases,
+    fetch_release as mb_fetch_release,
+    _pick_release as mb_pick_release,
+)
 from plugins.compareAndEdit import (
     display_comparison,
     compare_tags,
@@ -84,6 +95,22 @@ def processMP3Files(libPath, verbosity, database):
     if not mp3_files:
         return
 
+    # Resolve database functions once up front
+    if database == 'musicbrainz':
+        _auth_fn       = authMusicBrainz
+        _find_releases = mb_find_releases
+        _fetch_release = mb_fetch_release
+        _pick_release_fn = mb_pick_release
+        db_label       = 'MusicBrainz'
+        auth_msg       = 'Connecting to MusicBrainz...'
+    else:
+        _auth_fn       = authDiscogs
+        _find_releases = discogs_find_releases
+        _fetch_release = discogs_fetch_release
+        _pick_release_fn = discogs_pick_release
+        db_label       = 'Discogs'
+        auth_msg       = 'Authenticating with Discogs...'
+
     auth_data = None
 
     for idx, filepath in enumerate(mp3_files, start=1):
@@ -109,8 +136,8 @@ def processMP3Files(libPath, verbosity, database):
         # --- database path ---
 
         if auth_data is None:
-            print("Authenticating with Discogs...")
-            auth_data = authDiscogs(libPath, verbosity)
+            print(auth_msg)
+            auth_data = _auth_fn(libPath, verbosity)
 
         at, ats, consumer, user_agent = auth_data
 
@@ -119,7 +146,7 @@ def processMP3Files(libPath, verbosity, database):
         dir_artist = os.path.basename(os.path.dirname(root))
 
         try:
-            results, dclient, duser_agent = find_releases(
+            results, db_client, db_user_agent = _find_releases(
                 file_tags.get('artist', ''),
                 file_tags.get('album', ''),
                 file_tags.get('song', ''),
@@ -128,19 +155,29 @@ def processMP3Files(libPath, verbosity, database):
                 dir_album=dir_album,
             )
         except Exception as e:
-            print(f"  Discogs search failed: {e}  Skipping file.\n")
+            print(f"  {db_label} search failed: {e}  Skipping file.\n")
             continue
 
         if not results:
-            print("  No Discogs results found for this file.")
+            print(f"  No {db_label} results found for this file.")
             _display_file_tags(filename, file_tags)
             continue
 
         while True:
-            chosen = _pick_release(results, track=file_tags.get('song', ''), client=dclient, user_agent=duser_agent, dir_album=dir_album)
+            chosen = _pick_release_fn(
+                results,
+                track=file_tags.get('song', ''),
+                client=db_client,
+                user_agent=db_user_agent,
+                dir_album=dir_album,
+            )
             if not chosen:
                 print("  Skipping file.\n")
                 break
+
+            if isinstance(chosen, dict) and chosen.get('quit'):
+                print("  Quitting.\n")
+                sys.exit(0)
 
             # Manual search: prompt for new terms and re-search
             if isinstance(chosen, dict) and chosen.get('manual'):
@@ -149,7 +186,7 @@ def processMP3Files(libPath, verbosity, database):
                 m_album  = _input_with_default("  Search album:  ", file_tags.get('album', '')  or dir_album).strip()
                 m_track  = _input_with_default("  Search track:  ", default_track).strip()
                 try:
-                    new_results, new_client, new_ua = find_releases(
+                    new_results, new_client, new_ua = _find_releases(
                         m_artist, m_album, m_track,
                         at, ats, consumer, user_agent,
                     )
@@ -159,24 +196,24 @@ def processMP3Files(libPath, verbosity, database):
                 if not new_results:
                     print("  No results found. Try different terms.\n")
                     continue
-                results  = new_results
-                dclient  = new_client
-                duser_agent = new_ua
+                results       = new_results
+                db_client     = new_client
+                db_user_agent = new_ua
                 continue
 
             try:
-                discogs_tags = fetch_release(
-                    dclient, duser_agent, chosen['id'], file_tags.get('song', '')
+                db_tags = _fetch_release(
+                    db_client, db_user_agent, chosen['id'], file_tags.get('song', '')
                 )
             except Exception as e:
                 print(f"  Could not fetch release data: {e}  Try another.\n")
                 continue
 
-            if not discogs_tags:
+            if not db_tags:
                 print("  Could not fetch release data. Try another.\n")
                 continue
 
-            display_comparison(filename, file_tags, discogs_tags)
+            display_comparison(filename, file_tags, db_tags, db_label)
 
             print("  [c] Continue resolving tags")
             print("  [r] Pick a different album")
@@ -190,7 +227,7 @@ def processMP3Files(libPath, verbosity, database):
 
             if action == 'q':
                 print("  Quitting.\n")
-                return
+                sys.exit(0)
             if action == 's':
                 print("  Skipping file.\n")
                 break
@@ -198,9 +235,9 @@ def processMP3Files(libPath, verbosity, database):
                 continue
 
             # action == 'c': resolve and save
-            differences = compare_tags(file_tags, discogs_tags)
+            differences = compare_tags(file_tags, db_tags)
             if differences:
-                resolved = prompt_tag_resolution(differences)
+                resolved = prompt_tag_resolution(differences, db_label)
                 if resolved:
                     try:
                         apply_tags(filepath, resolved)

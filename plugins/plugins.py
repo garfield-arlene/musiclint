@@ -1,12 +1,7 @@
 #!/usr/bin/env python3
 
 from plugins.queryDiscogs import queryDiscogs
-
-# def queryDiscogs():
-#     return "discogs"
-
-def queryMusicBrainz():
-    return "musicbrainz"
+from plugins.queryMusicBrainz import queryMusicBrainz
 
 def chooseDBPlugin(argument):
     switcher = {
