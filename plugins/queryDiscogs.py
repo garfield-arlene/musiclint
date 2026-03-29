@@ -229,14 +229,16 @@ def _pick_release(results, track=None, client=None, user_agent=None, dir_album=N
         rec    = ' (recommended)' if i == recommended else ''
         print(f"    [{i+1}] [{t_mark}{a_mark}] {r.get('title', 'Unknown')} ({r.get('year', '?')}) — {r.get('type', '')}{rec}")
     print("         T=track found  A=album dir matches  -=not found")
-    print(f"    [s] Skip / no match   [m] Manual search")
+    print(f"    [s] Skip / no match   [m] Manual search   [q] Quit")
 
     while True:
-        choice = input("  Select result [1-{0}/s/m]: ".format(len(hits))).strip().lower()
+        choice = input("  Select result [1-{0}/s/m/q]: ".format(len(hits))).strip().lower()
         if choice == 's':
             return None
         if choice == 'm':
             return {'manual': True}
+        if choice == 'q':
+            return {'quit': True}
         if choice.isdigit() and 1 <= int(choice) <= len(hits):
             return hits[int(choice) - 1]
         print("  Invalid choice.")

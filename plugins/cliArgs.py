@@ -21,13 +21,14 @@ class cliArgs:
         self.parser.add_argument(
             '-d', '--database',
             type=self.usableDB,
-            help="Specify the music library root directory",
+            default='musicbrainz',
+            help="Online database to use for tag lookup (default: musicbrainz)",
         )
 
         self.parser.add_argument(
             '-V', '--version',
             action='version',
-            version='%(prog)s 1.2.0',
+            version='%(prog)s 1.3.0',
         )
 
         self.parser.add_argument(
@@ -63,7 +64,7 @@ class cliArgs:
         '''
             Validate the specified online DB provider from the optional parameter
         '''
-        validDBList = ['discogs']
+        validDBList = ['discogs', 'musicbrainz']
         if prospective_db in validDBList:
             return prospective_db
         else:

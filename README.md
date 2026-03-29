@@ -1,4 +1,4 @@
-# musiclint v1.2.0
+# musiclint v1.3.0
 Search your music library, verify the meta tags, and suggest missing albums from artists already in your library
 
 Linting

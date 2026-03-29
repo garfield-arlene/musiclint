@@ -21,9 +21,9 @@ TAGS = [
     ('genre',  'Genre'),
 ]
 
-def display_comparison(filename, file_tags, discogs_tags):
+def display_comparison(filename, file_tags, discogs_tags, db_label='Online DB'):
     '''
-    Print a side-by-side comparison table of file tags vs Discogs tags.
+    Print a side-by-side comparison table of file tags vs database tags.
     Rows with differing values are marked with *.
     Column widths adjust to fit the longest value in each column.
     '''
@@ -33,9 +33,9 @@ def display_comparison(filename, file_tags, discogs_tags):
         d_val = str(discogs_tags.get(key, '') or '').strip()
         rows.append((label, f_val, d_val, f_val != d_val))
 
-    w_tag  = max(len('Tag'),     *(len(r[0]) for r in rows))
-    w_file = max(len('File'),    *(len(r[1]) for r in rows))
-    w_disc = max(len('Discogs'), *(len(r[2]) for r in rows))
+    w_tag  = max(len('Tag'),      *(len(r[0]) for r in rows))
+    w_file = max(len('File'),     *(len(r[1]) for r in rows))
+    w_disc = max(len(db_label),   *(len(r[2]) for r in rows))
     total  = 2 + w_tag + 2 + w_file + 2 + w_disc
 
     border = '=' * total
@@ -44,7 +44,7 @@ def display_comparison(filename, file_tags, discogs_tags):
     print(f'\n{border}')
     print(f'  File: {filename}')
     print(f'{border}')
-    print(f'  {"Tag":<{w_tag}}  {"File":<{w_file}}  {"Discogs":<{w_disc}}')
+    print(f'  {"Tag":<{w_tag}}  {"File":<{w_file}}  {db_label:<{w_disc}}')
     print(rule)
     for label, f_val, d_val, differs in rows:
         marker = '*' if differs else ' '
@@ -66,17 +66,17 @@ def compare_tags(file_tags, discogs_tags):
     return differences
 
 
-def prompt_tag_resolution(differences):
+def prompt_tag_resolution(differences, db_label='Online DB'):
     '''
     Interactively prompt the user to resolve each differing tag.
-    Options: [f] keep file value, [d] use Discogs value, [t] type custom.
+    Options: [f] keep file value, [d] use database value, [t] type custom.
     Returns a dict of {tag_key: chosen_value} for tags the user changed.
     '''
     if not differences:
         return {}
 
     print("  Resolve each differing tag:")
-    print("  [f] Keep file value   [d] Use Discogs value   [t] Type custom\n")
+    print(f"  [f] Keep file value   [d] Use {db_label} value   [t] Type custom\n")
 
     resolved = {}
     for tag, vals in differences.items():
@@ -85,8 +85,8 @@ def prompt_tag_resolution(differences):
         d_val   = vals['discogs'] or '(empty)'
 
         print(f"  {label}:")
-        print(f"    [f] File   : {f_val}")
-        print(f"    [d] Discogs: {d_val}")
+        print(f"    [f] File         : {f_val}")
+        print(f"    [d] {db_label:<10}: {d_val}")
         print(f"    [t] Custom")
 
         while True:

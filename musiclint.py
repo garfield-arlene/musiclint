@@ -5,16 +5,17 @@ from dotenv import load_dotenv
 from plugins.cliArgs import cliArgs
 from plugins.logIT import logIT
 
-__version__ = '1.2.0'
+__version__ = '1.3.0'
 
 load_dotenv()
 
 
 
 def main():
-    if args.database:
+    if args.database == 'discogs':
         print("Using Discogs.com for online DB\n")
-        import plugins.queryDiscogs
+    elif args.database == 'musicbrainz':
+        print("Using MusicBrainz for online DB\n")
 
     process_mp3  = args.mp3  or args.all
     process_flac = args.flac or args.all
