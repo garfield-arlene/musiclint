@@ -28,7 +28,7 @@ class cliArgs:
         self.parser.add_argument(
             '-V', '--version',
             action='version',
-            version='%(prog)s 1.3.0',
+            version='%(prog)s 1.4.0',
         )
 
         self.parser.add_argument(
@@ -44,8 +44,14 @@ class cliArgs:
         )
 
         self.parser.add_argument(
+            '-o', '--ogg',
+            help="Parse ogg audio files",
+            action="store_true",
+        )
+
+        self.parser.add_argument(
             '-a', '--all',
-            help="Parse all supported audio file formats (mp3, flac)",
+            help="Parse all supported audio file formats (mp3, flac, ogg)",
             action="store_true",
         )
 
